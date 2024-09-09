@@ -1,0 +1,16 @@
+{
+    order caddy-host-query before reverse_proxy
+}
+
+:80 {
+    handle {
+        caddy-host-query http://localhost:5214/get-actual-host
+
+        reverse_proxy {
+            to https://{http.request.header.X-Resolved-Host}
+            transport http {
+                tls
+            }
+        }
+    }
+}
