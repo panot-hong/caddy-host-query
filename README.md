@@ -46,7 +46,7 @@ After building Caddy, you can run it using the following command:
 or if you place `Caddyfile` in another directory, you can run it using the following command:
     
 ```bash
-./caddy run --config /path/to/Caddyfile
+./caddy run --config ./test/Caddyfile
 ```
 
 ## Usage of this module in Caddyfile Configuration
@@ -55,20 +55,57 @@ The resolved host will be stored in the `X-Resolved-Host` header.
 Here is an example `Caddyfile` configuration to use your custom module:
 ```caddy
 {
+    debug # enable debug mode
     order caddy-host-query before reverse_proxy
 }
 
-handle {
-    caddy-host-query http://api.example.com/get-actual-host
+:80 {
+    handle {
+        caddy-host-query {
+            api_url http://localhost:5214/get-actual-host
+            default_upstream localhost:5215
+        }
+        @https {
+            expression {http.vars.shard.upstream.is_port_443} == true
+        }
+        
+        reverse_proxy @https {
+            to {http.vars.shard.upstream}
+            transport http {
+                tls
+            }
+        }
 
-    reverse_proxy {
-        to https://{http.request.header.X-Resolved-Host}
-        transport http {
-            tls
+        reverse_proxy {
+            to {http.vars.shard.upstream}
         }
     }
 }
 ```
+
+### Configuration Options
+- `api_url`: The URL to the API that will resolve the actual host. The API should return the actual host in the response body. This library expect the response to be in JSON format with the following structure:
+    ```json
+    {
+        "host": "actual-host"
+    }
+    ```
+    The actual host should be in format of `host:port` for HTTP for example `localhost:8080` and `https://host` for HTTPS for example `https://domain.com`.
+- `default_upstream`: The default upstream to use if the host cannot be resolved and return empty string.
+
+## Mocking the Host Query
+
+ํYou can run mock server to test the host query by running the following command:
+```bash
+cd test
+go run mock_server.go
+```
+
+Then run the caddy server and point to the Caddyfile in the test directory.
+```bash
+./caddy run --config ./test/Caddyfile
+```
+
 
 ## Development Workflow
 1. Make changes to your custom module.

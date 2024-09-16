@@ -1,16 +1,27 @@
 {
-    order caddy-host-query before reverse_proxy
+    debug
+    order caddy-host-query first #before reverse_proxy
 }
 
 :80 {
     handle {
-        caddy-host-query http://localhost:5214/get-actual-host
-
-        reverse_proxy {
-            to https://{http.request.header.X-Resolved-Host}
+        caddy-host-query {
+            api_url http://localhost:5214/get-actual-host
+            default_upstream localhost:5215
+        }
+        @https {
+            expression {http.vars.shard.upstream.is_port_443} == true
+        }
+        
+        reverse_proxy @https {
+            to {http.vars.shard.upstream}
             transport http {
                 tls
             }
+        }
+
+        reverse_proxy {
+            to {http.vars.shard.upstream}
         }
     }
 }

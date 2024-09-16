@@ -9,16 +9,19 @@ import (
 
     "github.com/caddyserver/caddy/v2"
     "github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
+    "github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
     "github.com/caddyserver/caddy/v2/modules/caddyhttp"
 )
 
 func init() {
     caddy.RegisterModule(HostQuery{})
+    httpcaddyfile.RegisterHandlerDirective("caddy-host-query", bodyParseCaddyfile)
 }
 
 // HostQuery is a Caddy module that makes an API request to get the host.
 type HostQuery struct {
-    APIURL string `json:"api_url"`
+    APIURL string `json:"api_url,omitempty"`
+    DEFAULT_UPSTREAM string `json:"default_upstream,omitempty"`
 }
 
 // CaddyModule returns the Caddy module information.
@@ -33,8 +36,10 @@ func (HostQuery) CaddyModule() caddy.ModuleInfo {
 func (m HostQuery) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.Handler) error {
     host := r.Host
 
+    fmt.Println("Default upstream:", m.DEFAULT_UPSTREAM)
     // Make the API request
     apiURL, err := url.Parse(m.APIURL)
+   
     if err != nil {
         return fmt.Errorf("invalid API URL: %v", err)
     }
@@ -62,22 +67,82 @@ func (m HostQuery) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyh
     if !ok {
         return fmt.Errorf("API response does not contain 'host' field")
     }
+    // If the new host is empty, set it to the default upstream
+    if newHost == "" {
+        newHost = m.DEFAULT_UPSTREAM
+    }
 
-    // Set the new host as a request header
-    r.Header.Set("X-Resolved-Host", newHost)
+    // Ensure the new host is correctly formatted
+    parsedURL, err := url.Parse(newHost)
+    if err != nil {
+        return fmt.Errorf("invalid host URL: %v", err)
+    }
 
-    // Call the next handler in the chain
+    // Set the new host as a variable in the request context
+    caddyhttp.SetVar(r.Context(), "shard.upstream", parsedURL.String())
+
+    // Determine if the port is 443
+    port := parsedURL.Port()
+    if port == "" {
+        port = "80" // Default port if not specified
+        if parsedURL.Scheme == "https" {
+            port = "443"
+            caddyhttp.SetVar(r.Context(), "shard.upstream", parsedURL.Host)
+        }
+    }
+
+    // Set a variable indicating whether the port is 443
+    isPort443 := port == "443"
+    caddyhttp.SetVar(r.Context(), "shard.upstream.is_port_443", isPort443)
+
+    // Read back the variables and log them
+    upstream := caddyhttp.GetVar(r.Context(), "shard.upstream")
+
+    // fmt.Printf("Upstream: %s\n", upstream)
+    // fmt.Printf("Resolved Port: %s\n", port)
+    // fmt.Printf("Is Port 443: %v\n", isPort443)
+
+    // Execute the next handler
     return next.ServeHTTP(w, r)
+}
+
+func (p HostQuery) Validate() error {
+	if p.APIURL == "" {
+		return fmt.Errorf("missing `api_url` in `caddy-host-query`")
+	}
+
+	return nil
 }
 
 // UnmarshalCaddyfile sets up the handler from Caddyfile tokens.
 func (m *HostQuery) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
-    for d.Next() {
-        if !d.Args(&m.APIURL) {
-            return d.ArgErr()
-        }
+    d.Next()
+    for d.NextBlock(0) {
+		switch d.Val() {
+		case "api_url":
+			if !d.AllArgs(&m.APIURL) {
+				return d.ArgErr()
+			}
+		case "default_upstream":
+			if !d.AllArgs(&m.DEFAULT_UPSTREAM) {
+				return d.ArgErr()
+			}
+		default:
+			return fmt.Errorf("unknown option `%s` in `caddy-host-query`", d.Val())
+		}
+	}
+
+    if m.APIURL == "" {
+        return d.Err("missing API URL")
     }
+    
     return nil
+}
+
+func bodyParseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
+    handler := &HostQuery{}
+	err := handler.UnmarshalCaddyfile(h.Dispenser)
+	return handler, err
 }
 
 // Interface guards
