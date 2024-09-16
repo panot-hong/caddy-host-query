@@ -96,7 +96,7 @@ func (m HostQuery) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyh
     caddyhttp.SetVar(r.Context(), "shard.upstream.is_port_443", isPort443)
 
     // Read back the variables and log them
-    upstream := caddyhttp.GetVar(r.Context(), "shard.upstream")
+    // upstream := caddyhttp.GetVar(r.Context(), "shard.upstream")
 
     // fmt.Printf("Upstream: %s\n", upstream)
     // fmt.Printf("Resolved Port: %s\n", port)
