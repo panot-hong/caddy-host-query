@@ -92,6 +92,7 @@ Here is an example `Caddyfile` configuration to use your custom module:
     ```
     The actual host should be in format of `host:port` for HTTP for example `localhost:8080` and `https://host` for HTTPS for example `https://domain.com`.
 - `default_upstream`: The default upstream to use if the host cannot be resolved and return empty string.
+- `default_https_scheme`: (Optional) whether to treat host from the api to be HTTPS if scheme and port are not specified. Default value is true.
 
 ## Mocking the Host Query
 

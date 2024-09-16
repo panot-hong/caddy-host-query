@@ -7,7 +7,8 @@
     handle {
         caddy-host-query {
             api_url http://localhost:5214/get-actual-host
-            default_upstream localhost:5215
+            default_https_scheme true
+            default_upstream localhost:5215            
         }
         @https {
             expression {http.vars.shard.upstream.is_port_443} == true

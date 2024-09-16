@@ -10,7 +10,7 @@ func main() {
 	// First server on port 8080
     go func() {
         http.HandleFunc("/get-actual-host", func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, `{"host": ""}`)
+			fmt.Fprintln(w, `{"host": "menu.live"}`)
 		})
         fmt.Println("Mock server running on http://localhost:5214")
         if err := http.ListenAndServe(":5214", nil); err != nil {
